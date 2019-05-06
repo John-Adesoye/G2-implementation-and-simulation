@@ -17,72 +17,6 @@ from dateutil.parser import parse
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
-class ZeroRate():
-    '''ZeroRate object, this excludes forwards from last code'''
-    def __init__ (self, loc='http://www.wsj.com/mdc/public/page/2_3020-treasury.html'):
-        self.loc = loc
-    def bootStrp(self):
-        url = self.loc
-        html = requests.get(url)
-        soup = bs.BeautifulSoup(html.text, 'html.parser')
-        l=soup.find("div",{"class":"tbltime"})
-        for span in l.findAll('span'): #Keeps only the last obs in this class, which is the date
-            date=span.text
-        dte=parse(date)
-        today=pd.to_datetime(dte.strftime('%Y-%m-%d'))
-        data=pd.read_html(self.loc) 
-        bills=data[2] 
-        bonds=data[1] #Selects the Treasury Notes/Bonds table.
-        bills.columns=bills.iloc[0] #Renames the bills header to be the names in row 0.
-        bonds.columns=bonds.iloc[0] #Renames the bonds header to be the names in row 0.
-        bills=bills.drop([0])
-        bonds=bonds.drop([0])
-        dt=parse(date) #Converts the date format.
-        today=pd.to_datetime(dt.strftime('%Y-%m-%d')) 
-        yrlen=365 
-        bonds.Maturity=pd.to_datetime(bonds.Maturity)
-        bills.Maturity=pd.to_datetime(bills.Maturity)
-        bonds.Askedyield=pd.to_numeric(bonds.Askedyield)
-        bills.Askedyield=pd.to_numeric(bills.Askedyield)
-        bonds=bonds[(bonds.Maturity-datetime.timedelta(yrlen))>today]
-        bonds=bonds[bonds.Maturity != bonds.Maturity.shift(1)]
-        bills=bills[bills.Maturity != bills.Maturity.shift(1)]
-        bonds.index=np.arange(1,len(bonds)+1)
-        bills['Ttm']=pd.to_numeric((bills.Maturity-today)/datetime.timedelta(yrlen))
-        bonds['Ttm']=pd.to_numeric((bonds.Maturity-today)/datetime.timedelta(yrlen))
-        bills['ZeroPrice']=1./(1.+(bills.Askedyield/100)*bills.Ttm) #Treasury bill prices.
-    
-        bonds['ZeroPrice']=pd.to_numeric(bonds.Asked)/100 #sets the quoted price
-        bonds.Coupon=pd.to_numeric(bonds.Coupon)
-        i=1 #Sets the bond index counting variable to the first obs.
-        while i<=len(bonds):
-            s=np.floor(pd.to_numeric((bonds.Maturity[i]-today)/datetime.timedelta(yrlen))*2)
-            while ((bonds.Maturity[i]-dateutil.relativedelta.relativedelta(months=s*6)>today) & (bonds.Maturity[i]-dateutil.relativedelta.relativedelta(months=s*6)<bonds.Maturity[i])):
-                cpndate=bonds.Maturity[i]-dateutil.relativedelta.relativedelta(months=s*6)
-                if pd.to_numeric((cpndate-today)/datetime.timedelta(yrlen))<1:
-                    absdif=abs(bills.Maturity-cpndate)
-                    df=bills.ZeroPrice[absdif.idxmin()]
-                else:
-                    absdif=abs(bonds.Maturity-cpndate)
-                    df=bonds.ZeroPrice[absdif.idxmin()]
-                if s==np.floor(pd.to_numeric((bonds.Maturity[i]-today)/datetime.timedelta(yrlen))*2):
-                    bonds.ZeroPrice[i]=bonds.ZeroPrice[i]+((bonds.Coupon[i]/100)/2)*(1-pd.to_numeric((cpndate-today)/datetime.timedelta(30*6)))
-                bonds.ZeroPrice[i]=bonds.ZeroPrice[i]-((bonds.Coupon[i]/100)/2)*df
-                s=s-1
-            bonds.ZeroPrice[i]=bonds.ZeroPrice[i]/(1+((bonds.Coupon[i]/100)/2))
-            i=i+1
-        bonds['ZeroYield']=(1/(bonds.ZeroPrice**(1/bonds.Ttm))-1)*100
-        zero=pd.DataFrame((bills.Askedyield).append(bonds.ZeroYield))
-        zero.columns=['Yield']
-        zero['Price']=(bills.ZeroPrice).append(bonds.ZeroPrice)
-        zero['Maturity']=(bills.Maturity).append(bonds.Maturity)
-        zero.index=np.arange(1,len(zero)+1)
-        zero['MA']=zero.Yield.rolling(window=12,center=True,min_periods=0).mean()
-        return bonds[['Ttm','ZeroPrice']].append(bills[['Ttm','ZeroPrice']])
-
-trea_dat = ZeroRate()
-z = trea_dat.bootStrp()
-
 def getData(url):
     '''g=Gets most recent volcube data from the web'''
     if datetime.datetime.today().weekday() == 5:
@@ -123,9 +57,6 @@ def clean(url='ftp://ftp.cmegroup.com/irs/CME_ATM_VolCube_20190415.csv'):
     data.index = np.arange(len(data))
     return data
     
-
-
-
 def genttm():
     '''looks ups the ZeroPrice from bootstrapped data'''
     data_ttm  = {'1M': np.arange(1/12,362/12,6/12), '3M':np.arange(3/12,364/12,6/12),\
@@ -192,7 +123,7 @@ def G2ppsim(params=params, rate=0.0243):
         dw2 = np.matrix(np.random.normal(0,1,100)) * np.sqrt(dt)
         dxt = -a*rsimmat[i,1:nsim+1]*dt  + sigma*dw1
         dyt = -b*rsimmat[i,1:nsim+1]*dt + eta*rho*dw1 + eta*np.sqrt(1-rho**2)*dw2
-        dr = dxt + dyt
+        dr = dxt + dyt#need to rework and clean this up
         rsimmat[i+1,1:nsim+1] = rsimmat[i,1:nsim+1] + dr
     i=1
     while i<nsim:
