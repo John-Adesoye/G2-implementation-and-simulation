@@ -8,12 +8,8 @@ Created on Fri Apr 19 23:40:17 2019
 
 import numpy as np
 import pandas as pd
-import requests
-import bs4 as bs
 import datetime
-import dateutil
 import scipy.stats as si
-from dateutil.parser import parse
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 
@@ -67,6 +63,7 @@ def genttm():
 params = np.array([0.02,0.02,0.02,0.495,0.001,0.001,0.015])
 global gttm
 gttm = genttm()
+terms = {'1M':'1M', '3M':'3M', '6M':'6M', '1Y':'12M', '2Y':'24M'}
 
 def optimize(params,tau=0.5):
     '''optmization function, G2++ formular'''
@@ -77,22 +74,12 @@ def optimize(params,tau=0.5):
     exp = np.array(swpdt.Expiry).reshape(35,1)
     tenor = np.array(swpdt.Tenor).reshape(35,1)
     for i in range(len(exp)):
-        if exp[i] == '1M':
-            ttm = gttm['1M']
-        elif exp[i] == '3M':
-            ttm = gttm['3M']
-        elif exp[i] == '6M':
-            ttm = gttm['6M']
-        elif exp[i] == '1Y':
-            ttm = gttm['12M']
-        elif exp[i] == '2Y':
-            ttm = gttm['24M']
+        ttm = gttm[terms[exp[i][0]]]
         ttm = np.array(ttm).reshape(len(ttm),1)
         ttm = ttm[1:(int((tenor[i]))*2)+1]
         VtT =s**2/a**2*(ttm+(2/a)*np.exp(-a*ttm)-1/(2*a)*np.exp(-2*a*ttm)-3/(2*a))+eta**2/\
         b**2*(ttm+(2/b)*np.exp(-b*ttm)-1/(2*b)\
         *np.exp(-2*b*ttm)-3/(2*b))+2*rho*s*eta/(a*b)*(ttm+(np.exp(-a*ttm)-1)/a+(np.exp(-b*ttm)-1)/b-(np.exp(-(a+b)*ttm)-1)/(a+b))
-#        AtT = 1/2 * (VtT) - ((1-(np.exp(-a*ttm))/a)*x) - (((1-(np.exp(-b*ttm))/b)*y))
         PtT = np.exp(-(1-np.exp(-a*ttm))/a*x-(1-np.exp(-b*ttm))/b*y+1/2*VtT)
         PtT = PtT.sum()
         ps = swpdt.BS[i] * tau * PtT
@@ -140,14 +127,3 @@ sigma, a, b, rho, eta, x, y = LP(params)
 names = ['sigma', 'a', 'b', 'rho', 'eta', 'x', 'y']
 for i in names:
     print(i+':',vars()[i])
-
-
-
-
-        
-    
-
-
-
-
-
